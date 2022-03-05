@@ -80,8 +80,8 @@ Se unen las tablas de Canton con la de Red Vial
 
 #Unir las capas con intersección espacial 
 redvial_x_canton = cantones_file.overlay(redvial_file, how='intersection', keep_geom_type=False)
-for i in range(6616):
-   redvial_x_canton['longitud'][i] = redvial_x_canton['geometry'][i].length /1000
+redvial_x_canton['longitud'] = redvial_x_canton['geometry'].length /1000
+
 
 # Group by de canton y categorias
 redvial_x_canton_agrupados = redvial_x_canton.groupby(['canton', 'categoria']).agg({'longitud': 'sum', 'area': 'min'})
@@ -147,3 +147,50 @@ pastel.loc[pastel[filtro_categoria] < longitud_15 , 'canton'] = 'Otros cantones'
 #Gráfico plotly de pastel 
 fig = px.pie(pastel, values=filtro_categoria, names='canton', title='Porcentaje de los 15 cantones de mayor longitud de la categoría: '+ filtro_categoria +' de la red vial en el país')
 fig.show()
+
+""" 
+## Mapa folium 
+Un mapa folium con las siguientes capas:
+* Capa base (OpenStreetMap, Stamen, etc.).
+* Capa de coropletas correspondiente a la densidad de la red vial en los cantones.
+* Líneas de la red vial.
+
+Y los siguientes controles:
+* Control para activar y desactivar capas.
+* Escala
+"""
+cantones_file = cantones_file.to_crs(4326)
+redvial_file = redvial_file.to_crs(4326)
+
+capa_mapa = redvial_x_canton_agrupados[['canton', 'densidad']]
+# Creación del mapa base
+mapa= folium.Map(
+    location=[9.8, -84], 
+    width=1000, height=1000, 
+    zoom_start=8,
+    control_scale=True,
+    tiles='Stamen Watercolor'
+    )
+
+#Añadir mapa de coropletas
+folium.Choropleth(
+    name="Densidad de la red vial en los cantones de Costa Rica",
+    geo_data=cantones_file,
+    data=capa_mapa,
+    columns=['canton', 'densidad'],
+    bins=8,
+    key_on='feature.properties.canton',
+    fill_color='Reds', 
+    fill_opacity=0.5, 
+    line_opacity=1,
+    legend_name='densidad',
+    smooth_factor=0 ).add_to(mapa)
+
+#añadir capa con las lineas de red vial
+folium.GeoJson(data=redvial_file, name='Red vial').add_to(mapa)
+
+# Control de capas
+folium.LayerControl().add_to(mapa)
+
+# Despliegue del mapa
+mapa
